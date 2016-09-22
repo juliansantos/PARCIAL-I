@@ -1,4 +1,10 @@
 Message[305] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 74 : Using default destination of 1 (file).
-Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 151 : Register in operand not in bank 0.  Ensure that bank bits are correct.
-Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 152 : Register in operand not in bank 0.  Ensure that bank bits are correct.
-Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 190 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 79 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 160 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 161 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 162 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 163 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 205 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 216 : Register in operand not in bank 0.  Ensure that bank bits are correct.
+Message[305] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 263 : Using default destination of 1 (file).
+Message[302] C:\USERS\JULIAN SANTOS\MPLABXPROJECTS\PARCIAL I.X\MAINPARCIAL.ASM 295 : Register in operand not in bank 0.  Ensure that bank bits are correct.

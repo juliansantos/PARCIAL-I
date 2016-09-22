@@ -1,4 +1,4 @@
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE  1
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE  1
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
@@ -24,446 +24,561 @@ LOC  OBJECT CODE     LINE SOURCE TEXT
                       00008     #define pinDATA PORTB,RB6;Data (anode-> 7 segment) 
                       00009     #define pinLATCH PORTB,RB5;To latch the data in 595
                       00010     #define pinCLOCK PORTB,RB7 ;Clock for 595
-                      00011     #define debouncing 0 ; Bit 0 for enabling debouncing
-                      00012     #define buzzer 1 ;Bit 1 for enabling debouncing
-                      00013     #define dysdata 2 ;Bit 2 for enabling show data 
-                      00014     #define pinbuzzer PORTB,RB7
-                      00015     
-2007   3F29           00016  __CONFIG _FOSC_XT & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & _CP_OFF
-                      00017  
-                      00018     CBLOCK 0x20
-  00000020            00019     stack:8 ; Stack
-  00000028            00020     datatmp
-  00000029            00021     Task ; bit
-  0000002A            00022     counterdebounce ; var to how often this subroutine is done
-  0000002B            00023     counterdisplay
-  0000002C            00024     counterbuzzer
-  0000002D            00025     basetransistor ; states of base tran
-  0000002E            00026     count8
-  0000002F            00027     statustmp
-  00000030            00028     wtemp
-  00000031            00029     data595
-  00000032            00030     delayvar:3
-                      00031     ENDC
-                      00032     
-                      00033     org 0x00 ; Start of the program 
-0000   2???           00034     goto main 
-                      00035     org 0x08 ;Interrupt vector high priority interrupts 
-0008   2???           00036     goto ISR  
-                      00037 
-                      00038 ;*************************************************************FOREGROUND RoUTINE
-0009                  00039 main:
-0009   2???           00040     call initialconfig
-000A   2???           00041     call initialstates
-000B   2???           00042     call initINT0
-000C   2???           00043     call initTMR0
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE  2
+                      00011     #define push 3 ; bit for enabling push
+                      00012     #define debouncing 0 ; Bit 0 for enabling debouncing
+                      00013     #define buzzer 1 ;Bit 1 for enabling debouncing
+                      00014     #define dysdata 2 ;Bit 2 for enabling show data 
+                      00015     #define whistle 4 ; Bit 4 for enabling whistle of the buzzer
+                      00016     #define pinbuzzer PORTA,RA7
+                      00017     
+2007   3F38           00018  __CONFIG _FOSC_INTOSCIO & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & _CP_O
+                            FF
+                      00019  
+                      00020     CBLOCK 0x20
+  00000020            00021     stack:8 ; Stack
+  00000028            00022     datatmp
+  00000029            00023     Task ; bit
+  0000002A            00024     counterdebouncer:2 ; var to how often this subroutine is done
+  0000002C            00025     counterdisplay
+  0000002D            00026     counterbuzzer
+  0000002E            00027     basetransistor ; states of base tran
+  0000002F            00028     count8
+  00000030            00029     statustmp
+  00000031            00030     wtemp
+  00000032            00031     data595
+  00000033            00032     delayvar:3
+  00000036            00033     tempstack:2
+                      00034     ENDC
+                      00035     
+                      00036     org 0x00 ; Start of the program 
+0000   2???           00037     goto main 
+                      00038     org 0x08 ;Interrupt vector high priority interrupts 
+0008   2???           00039     goto ISR  
+                      00040 
+                      00041 ;*************************************************************FOREGROUND RoUTINE
+0009                  00042 main:
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE  2
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-                      00044     
-000D                  00045 task:   
-                      00046     
-                      00047 ;    bcf PORTA,RA2; 
-                      00048 ;    movlw d'30'
-                      00049 ;    call delayW0ms
-                      00050 ;    bsf PORTA,RA2
-                      00051 ;    movlw d'30'
-                      00052 ;    call delayW0ms
-                      00053     
-                      00054 ;    movlw 0xAA   ;SENDING DATA SERIALYS
-                      00055 ;    movwf data595;send serial data to 595
-                      00056 ;    call send8
-                      00057 ;    call latch
-                      00058     ;polling flags (task)
-                      00059 ;    btfsc Task,debouncing
-                      00060 ;    call rdebouncing
-                      00061 ;    btfsc Task,buzzer
-                      00062    ; call togglebuzzer; Bit toggle pin buzzer
-000D   1929           00063     btfsc Task,dysdata
-000E   2???           00064     call showdigit ; Show digit display
-000F   2???           00065     goto task
-                      00066 
-0010                  00067 rdebouncing: ; ----------------------------------------
-0010   148B           00068     bsf INTCON,INTF ; Enabling interrupt flag
-0011   0008           00069     return
-0012                  00070 togglebuzzer: ; ------------------------------subroutine for toggling the buzzer
-0012   01AC           00071     clrf counterbuzzer
-0013   10A9           00072     bcf Task,buzzer
-0014   3080           00073     movlw b'10000000' ; Just for toggling
+0009   2???           00043     call initialconfig
+000A   2???           00044     call initialstates
+000B   2???           00045     call initINT0
+000C   2???           00046     call initTMR0
+                      00047     
+000D                  00048 task:   
+                      00049     ;polling flags (task)
+000D   1829           00050     btfsc Task,debouncing; task for debouncing
+000E   2???           00051     call rdebouncing
+000F   18A9           00052     btfsc Task,buzzer
+0010   2???           00053     call togglebuzzer; Bit toggle pin buzzer
+0011   1929           00054     btfsc Task,dysdata
+0012   2???           00055     call showdigit ; Show digit display
+0013   1A29           00056     btfsc Task,whistle
+0014   2???           00057     call offbuzzer
+0015   2???           00058     goto task
+                      00059 
+0016                  00060 rdebouncing: ; ----------------------------------------
+0016   108B           00061     bcf INTCON,INTF
+0017   160B           00062     bsf INTCON,INTE 
+0018   1029           00063     bcf Task,debouncing
+0019   11A9           00064     bcf Task,push
+001A   138B           00065     bcf INTCON,GIE
+001B   2???           00066        call rotateStack
+001C   178B           00067     bsf INTCON,GIE   
+001D   0008           00068     return
+                      00069     
+001E                  00070 togglebuzzer: ; ------------------------------subroutine for toggling the buzzer
+001E   01AD           00071     clrf counterbuzzer
+001F   10A9           00072     bcf Task,buzzer
+0020   3080           00073     movlw b'10000000' ; Just for toggling
 Message[305]: Using default destination of 1 (file).
-0015   0686           00074     xorwf PORTB
-0016   0008           00075     return
-0017                  00076 showdigit: ; --------------------------------subroutine for show data in 4(7seg)
-0017   01AB           00077     clrf counterdisplay
-0018   1003           00078     bcf STATUS,C
-0019   0DAD           00079     rlf basetransistor,F
-001A   3001           00080     movlw 0x01
-001B   1A2D           00081     btfsc basetransistor,4 ;test if a rolls over occurred
-001C   00AD           00082     movwf basetransistor
-001D   1185           00083     bcf pindisplay4
-001E   1105           00084     bcf pindisplay3
-001F   1085           00085     bcf pindisplay2
-0020   1005           00086     bcf pindisplay1
-0021   2???           00087     call sendata ; sending data to 595
-                      00088     
-0022   19AD           00089     btfsc basetransistor,3 ;turn on display 4?
-0023   1585           00090     bsf pindisplay4
-0024   192D           00091     btfsc basetransistor,2 ;turn on display 3?
-0025   1505           00092     bsf pindisplay3
-0026   18AD           00093     btfsc basetransistor,1 ;turn on display 2? 
-0027   1485           00094     bsf pindisplay2
-0028   182D           00095     btfsc basetransistor,0 ;turn on display 1?
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE  3
-
-
-LOC  OBJECT CODE     LINE SOURCE TEXT
-  VALUE
-
-0029   1405           00096     bsf pindisplay1
-002A   1129           00097     bcf Task,dysdata
-                      00098    ; goto $
-002B   0008           00099     return
-                      00100     
-002C                  00101 sendata: ;----------------------------subruoutine to send serial data to display
-002C   19AD           00102     btfsc basetransistor,3 ;turn on display 4?
-002D   0823           00103     movf stack+3,W
-002E   192D           00104     btfsc basetransistor,2 ;turn on display 3?
-002F   0822           00105     movf stack+2,W
-0030   18AD           00106     btfsc basetransistor,1 ;turn on display 2? 
-0031   0821           00107     movf stack+1,W
-0032   182D           00108     btfsc basetransistor,0 ;turn on display 1?
-0033   0820           00109     movf stack,W
-0034   00A8           00110     movwf datatmp
-0035   138B           00111     bcf INTCON,GIE
-0036   2???           00112     call tabla 
-                      00113    ; movlw b'11111100'
-0037   00B1           00114     movwf data595;send serial data to 595
-0038   2???           00115     call send8
-0039   2???           00116     call latch
-003A   178B           00117     bsf INTCON,GIE
-003B   0008           00118     return
-                      00119 
-003C                  00120 send8:
-003C   1003           00121     bcf STATUS,C
-003D   0CB1           00122     rrf data595,F ; LSB -> C
-003E   1803           00123     btfsc STATUS,C
-003F   1706           00124     bsf pinDATA ; Carry =1 then Data=1 
-0040   1C03           00125     btfss STATUS,C
-0041   1306           00126     bcf pinDATA ; Carry =0 then Data=0
-0042   0AAE           00127     incf count8,F ; Increment counter
-0043   2???           00128     call pclock ; sending a positive edge 9clock)
-0044   1DAE           00129     btfss count8,3 ;test if count=8
-0045   2???           00130     goto send8 ;else, continue rotating
-0046   01AE           00131     clrf count8 ; clear counter 8 bit
-0047   0008           00132     return    
-                      00133     
-0048                  00134 pclock:
-0048   1786           00135     bsf pinCLOCK
-0049   1386           00136     bcf pinCLOCK
-004A   0008           00137     return
-                      00138 ;-----------------------------------------------Subrutine for latch data (clock)    
-004B                  00139 latch:
-004B   1686           00140     bsf pinLATCH
-004C   1286           00141     bcf pinLATCH    
-004D   0008           00142     return    
-                      00143     
-004E                  00144 initialconfig: ;----------------------------------------subrutine for MCU config
-004E   1283           00145     bcf STATUS,RP0; Bank 0
-004F   1303           00146     bcf STATUS,RP1 
-0050   3007           00147     movlw 0x07
-0051   009F           00148     movwf CMCON ; pin as digital
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE  4
-
-
-LOC  OBJECT CODE     LINE SOURCE TEXT
-  VALUE
-
-0052   1683           00149     bsf STATUS,RP0; Bank 1
-0053   1303           00150     bcf STATUS,RP1 
+0021   0685           00074     xorwf PORTA
+0022   0008           00075     return
+                      00076     
+0023                  00077 offbuzzer: ;-----------------------------subroutine to turn off the buzzer   
+0023   1683           00078     bsf STATUS,RP0
 Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
-0054   0185           00151     clrf TRISA ; Setting data direction PortA
+0024   1785           00079     bsf TRISA,7
+0025   1283           00080     bcf STATUS,RP0
+0026   1229           00081     bcf Task,whistle
+                      00082   
+0027   0008           00083     return
+                      00084     
+0028                  00085 showdigit: ; --------------------------------subroutine for show data in 4(7seg)
+0028   01AC           00086     clrf counterdisplay
+0029   1003           00087     bcf STATUS,C
+002A   0DAE           00088     rlf basetransistor,F
+002B   3001           00089     movlw 0x01
+002C   1A2E           00090     btfsc basetransistor,4 ;test if a rolls over occurred
+002D   00AE           00091     movwf basetransistor
+002E   1185           00092     bcf pindisplay4
+002F   1105           00093     bcf pindisplay3
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE  3
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+0030   1085           00094     bcf pindisplay2
+0031   1005           00095     bcf pindisplay1
+0032   2???           00096     call sendata ; sending data to 595
+                      00097     
+0033   19AE           00098     btfsc basetransistor,3 ;turn on display 4?
+0034   1585           00099     bsf pindisplay4
+0035   192E           00100     btfsc basetransistor,2 ;turn on display 3?
+0036   1505           00101     bsf pindisplay3
+0037   18AE           00102     btfsc basetransistor,1 ;turn on display 2? 
+0038   1485           00103     bsf pindisplay2
+0039   182E           00104     btfsc basetransistor,0 ;turn on display 1?
+003A   1405           00105     bsf pindisplay1
+003B   1129           00106     bcf Task,dysdata
+                      00107    ; goto $
+003C   0008           00108     return
+                      00109     
+003D                  00110 sendata: ;----------------------------subruoutine to send serial data to display
+003D   19AE           00111     btfsc basetransistor,3 ;turn on display 4?
+003E   0823           00112     movf stack+3,W
+003F   192E           00113     btfsc basetransistor,2 ;turn on display 3?
+0040   0822           00114     movf stack+2,W
+0041   18AE           00115     btfsc basetransistor,1 ;turn on display 2? 
+0042   0821           00116     movf stack+1,W
+0043   182E           00117     btfsc basetransistor,0 ;turn on display 1?
+0044   0820           00118     movf stack,W
+0045   00A8           00119     movwf datatmp
+0046   138B           00120     bcf INTCON,GIE
+0047   2???           00121     call tabla 
+                      00122    ; movlw b'11111100'
+0048   00B2           00123     movwf data595;send serial data to 595
+0049   2???           00124     call send8
+004A   2???           00125     call latch
+004B   178B           00126     bsf INTCON,GIE
+004C   0008           00127     return
+                      00128 
+004D                  00129 send8:
+004D   1003           00130     bcf STATUS,C
+004E   0CB2           00131     rrf data595,F ; LSB -> C
+004F   1803           00132     btfsc STATUS,C
+0050   1706           00133     bsf pinDATA ; Carry =1 then Data=1 
+0051   1C03           00134     btfss STATUS,C
+0052   1306           00135     bcf pinDATA ; Carry =0 then Data=0
+0053   0AAF           00136     incf count8,F ; Increment counter
+0054   2???           00137     call pclock ; sending a positive edge 9clock)
+0055   1DAF           00138     btfss count8,3 ;test if count=8
+0056   2???           00139     goto send8 ;else, continue rotating
+0057   01AF           00140     clrf count8 ; clear counter 8 bit
+0058   0008           00141     return    
+                      00142     
+0059                  00143 pclock:
+0059   1786           00144     bsf pinCLOCK
+005A   1386           00145     bcf pinCLOCK
+005B   0008           00146     return
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE  4
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+                      00147 ;-----------------------------------------------Subrutine for latch data (clock)    
+005C                  00148 latch:
+005C   1686           00149     bsf pinLATCH
+005D   1286           00150     bcf pinLATCH    
+005E   0008           00151     return    
+                      00152     
+005F                  00153 initialconfig: ;----------------------------------------subrutine for MCU config
+005F   1283           00154     bcf STATUS,RP0; Bank 0
+0060   1303           00155     bcf STATUS,RP1 
+0061   3007           00156     movlw 0x07
+0062   009F           00157     movwf CMCON ; pin as digital
+0063   1683           00158     bsf STATUS,RP0; Bank 1
+0064   1303           00159     bcf STATUS,RP1 
 Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
-0055   0186           00152     clrf TRISB ; Setting data direction PortB
-0056   1283           00153     bcf STATUS,RP0 ;Bank 0 
-0057   1303           00154     bcf STATUS,RP1
-0058   0008           00155     return
-                      00156     
-0059                  00157 initialstates: ;-------------------------subrutine for setting the initialstates   
-0059   3048           00158     movlw 'H'
-005A   00A0           00159     movwf stack   ; initial states of the stack
-005B   3030           00160     movlw '0'
-005C   00A1           00161     movwf stack+1
-005D   304C           00162     movlw 'L'
-005E   00A2           00163     movwf stack+2
-005F   3041           00164     movlw 'A'
-0060   00A3           00165     movwf stack+3
-0061   01A4           00166     clrf stack+4
-0062   01A5           00167     clrf stack+5
-0063   01A6           00168     clrf stack+6
-0064   01A7           00169     clrf stack+7 
-0065   1005           00170     bcf pindisplay1 ; Turn off displays
-0066   1085           00171     bcf pindisplay2
-0067   1105           00172     bcf pindisplay3
-0068   1185           00173     bcf pindisplay4
-0069   1386           00174     bcf pinCLOCK ; idle state 595
-006A   1306           00175     bcf pinDATA
-006B   1286           00176     bcf pinLATCH
-006C   1386           00177     bcf pinbuzzer
-006D   01AC           00178     clrf counterbuzzer
-006E   01AB           00179     clrf counterdisplay 
-006F   01A9           00180     clrf Task ;initial Task disemable
-0070   3001           00181     movlw 0x01
-0071   00AD           00182     movwf basetransistor
-0072   01AE           00183     clrf count8
-0073   0008           00184     return
-                      00185     
-0074                  00186 initTMR0: ;-----------------------------------subrutine for setting the TIMER 0
-0074   1683           00187     bsf STATUS,RP0; Bank 1
-0075   1303           00188     bcf STATUS,RP1
-0076   30C0           00189     movlw b'11000000' ; disenable pull-up,  rising edge INT0, CS=0, PS=1:2
+0065   0185           00160     clrf TRISA ; Setting data direction PortA
 Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
-0077   0081           00190     movwf OPTION_REG
-0078   1283           00191     bcf STATUS,RP0; Bank 0
-0079   1303           00192     bcf STATUS,RP1
-007A   30E7           00193     movlw -d'25' ; 50useg   : Tosc/4=1us
-007B   0081           00194     movwf TMR0 
-007C   110B           00195     bcf INTCON,T0IF ; Clearing interrupt flag timer 0
-007D   168B           00196     bsf INTCON,T0IE ; Enabling interrupt timer 0
-007E   178B           00197     bsf INTCON,GIE ; Enabling globla interrupt
-007F   0008           00198     return
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE  5
+0066   0186           00161     clrf TRISB ; Setting data direction PortB
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0067   1785           00162     bsf TRISA,7 ; Buzzer OFF
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0068   1406           00163     bsf TRISB,RB0 ; External interrupt
+0069   1283           00164     bcf STATUS,RP0 ;Bank 0 
+006A   1303           00165     bcf STATUS,RP1
+006B   0008           00166     return
+                      00167     
+006C                  00168 initialstates: ;-------------------------subrutine for setting the initialstates   
+006C   3048           00169     movlw 'H'
+006D   00A0           00170     movwf stack   ; initial states of the stack
+006E   3030           00171     movlw '0'
+006F   00A1           00172     movwf stack+1
+0070   304C           00173     movlw 'L'
+0071   00A2           00174     movwf stack+2
+0072   3041           00175     movlw 'A'
+0073   00A3           00176     movwf stack+3
+0074   3020           00177     movlw ' '
+0075   00A4           00178     movwf stack+4
+0076   3031           00179     movlw '1'
+0077   00A5           00180     movwf stack+5
+0078   3032           00181     movlw '2'
+0079   00A6           00182     movwf stack+6
+007A   3033           00183     movlw '3'
+007B   00A7           00184     movwf stack+7
+007C   1005           00185     bcf pindisplay1 ; Turn off displays
+007D   1085           00186     bcf pindisplay2
+007E   1105           00187     bcf pindisplay3
+007F   1185           00188     bcf pindisplay4
+0080   1386           00189     bcf pinCLOCK ; idle state 595
+0081   1306           00190     bcf pinDATA
+0082   1286           00191     bcf pinLATCH
+0083   1385           00192     bcf pinbuzzer
+0084   01AD           00193     clrf counterbuzzer
+0085   01AC           00194     clrf counterdisplay 
+0086   01A9           00195     clrf Task ;initial Task disemable
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE  5
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-                      00199     
-0080                  00200 initINT0: ;-------------------------subrutine for setting the external interrupt
-0080   0008           00201     return
-                      00202     
-                      00203 ;**************************************************************BACKGROUND RUTINE    
-0081                  00204 ISR:
-                      00205     ; context saving (WREG, STATUS)
-0081   00B0           00206     movwf wtemp
-0082   0803           00207     movf STATUS,W
-0083   00AF           00208     movwf statustmp
-                      00209     
-0084   190B           00210     btfsc INTCON,T0IF
-0085   2???           00211     call TMR0ISR
-                      00212     ;btfsc INTCON,INTF
-                      00213     ;call INT0ISR
-                      00214     ;btfsc usart
-                      00215     ;Restore context saving (WREG, STATUS)
-0086   082F           00216     movf statustmp,W
-0087   0083           00217     movwf STATUS
-0088   0830           00218     movf wtemp,W
-0089   0009           00219     retfie  ; Restoring the status before the interrupt
-                      00220  
-008A                  00221 TMR0ISR:
-008A   0AAC           00222     incf counterbuzzer,F      ;| counterbuzzer++
-008B   3005           00223     movlw 0x05                ;| counterbuzzer=5?
-008C   022C           00224     subwf counterbuzzer,W     ;| cycles=5
-008D   1903           00225     btfsc STATUS,Z            ;|
-008E   14A9           00226     bsf Task,buzzer           ;|
-                      00227     
-008F   0AAB           00228     incf counterdisplay,F     ;| counterdisplay++
-0090   303F           00229     movlw d'63'               ;| counterdisplay=62.5? 'LOL'             
-0091   022B           00230     subwf counterdisplay,W    ;| cycles=5
-0092   1903           00231     btfsc STATUS,Z            ;|
-0093   1529           00232     bsf Task,dysdata          ;|
-                      00233 
-0094   30EC           00234     movlw -d'20' ; 50useg (50)/2   (50-2-2-2-5-5)/2
-                      00235     ;MOVLW 0X00
-0095   0081           00236     movwf TMR0 
-0096   110B           00237     bcf INTCON,T0IF ;Clearing interrupt flag TMR0
-0097   0008           00238     return
-                      00239     
-0098                  00240 INT0ISR: 
-                      00241     ; Turn on anti-debouncing task
-0098   1429           00242     bsf Task,debouncing
-0099   108B           00243     bcf INTCON,INTF ;Clearing interrupt flag external interrupt
-009A   120B           00244     bcf INTCON,INTE
-009B   0008           00245     return
-                      00246     
-009C                  00247 tabla:  ; Table for display data in a 7segment display
-009C   3030           00248     movlw '0' 
-009D   0228           00249     subwf datatmp,W
-009E   1903           00250     btfsc STATUS,Z
-009F   2???           00251     goto num0
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE  6
+0087   3001           00196     movlw 0x01
+0088   00AE           00197     movwf basetransistor
+0089   01AF           00198     clrf count8
+008A   0008           00199     return
+                      00200     
+008B                  00201 initTMR0: ;-----------------------------------subrutine for setting the TIMER 0
+008B   1683           00202     bsf STATUS,RP0; Bank 1
+008C   1303           00203     bcf STATUS,RP1
+008D   30C0           00204     movlw b'11000000' ; disenable pull-up,  rising edge INT0, CS=0, PS=1:2
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+008E   0081           00205     movwf OPTION_REG
+008F   1283           00206     bcf STATUS,RP0; Bank 0
+0090   1303           00207     bcf STATUS,RP1
+0091   30E7           00208     movlw -d'25' ; 50useg   : Tosc/4=1us
+0092   0081           00209     movwf TMR0 
+0093   110B           00210     bcf INTCON,T0IF ; Clearing interrupt flag timer 0
+0094   168B           00211     bsf INTCON,T0IE ; Enabling interrupt timer 0
+0095   178B           00212     bsf INTCON,GIE ; Enabling globla interrupt
+0096   0008           00213     return
+                      00214     
+0097                  00215 initINT0: ;-------------------------subrutine for setting the external interrupt
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+0097   1781           00216     bsf OPTION_REG,7 ;disnabling pull-up resistor
+0098   108B           00217     bcf INTCON,INTF  ;clearing flag
+0099   160B           00218     bsf INTCON,INTE ;enabling interrupt
+009A   178B           00219     bsf INTCON,GIE ;enabling global interrups
+009B   0008           00220     return
+                      00221     
+                      00222 ;**************************************************************BACKGROUND RUTINE    
+009C                  00223 ISR:
+                      00224     ; context saving (WREG, STATUS)
+009C   00B1           00225     movwf wtemp
+009D   0803           00226     movf STATUS,W
+009E   00B0           00227     movwf statustmp
+                      00228     
+009F   1283           00229     bcf STATUS,RP0; bank 0
+00A0   1303           00230     bcf STATUS,RP1 
+                      00231     
+00A1   190B           00232     btfsc INTCON,T0IF
+00A2   2???           00233     call TMR0ISR
+00A3   188B           00234     btfsc INTCON,INTF
+00A4   2???           00235     call INT0ISR
+                      00236     ;btfsc usart
+                      00237     ;Restore context saving (WREG, STATUS)
+00A5   0830           00238     movf statustmp,W
+00A6   0083           00239     movwf STATUS
+00A7   0831           00240     movf wtemp,W
+00A8   0009           00241     retfie  ; Restoring the status before the interrupt
+                      00242  
+00A9                  00243 TMR0ISR:
+                      00244     ;TASK 1
+00A9   0AAD           00245     incf counterbuzzer,F      ;| counterbuzzer++
+00AA   3005           00246     movlw 0x05                ;| counterbuzzer=5?
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE  6
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-00A0   3031           00252     movlw '1' 
-00A1   0228           00253     subwf datatmp,W
-00A2   1903           00254     btfsc STATUS,Z
-00A3   2???           00255     goto num1
-00A4   3032           00256     movlw '2' 
-00A5   0228           00257     subwf datatmp,W
-00A6   1903           00258     btfsc STATUS,Z
-00A7   2???           00259     goto num2
-00A8   3033           00260     movlw '3' 
-00A9   0228           00261     subwf datatmp,W
-00AA   1903           00262     btfsc STATUS,Z
-00AB   2???           00263     goto num3
-00AC   3034           00264     movlw '4' 
-00AD   0228           00265     subwf datatmp,W
-00AE   1903           00266     btfsc STATUS,Z
-00AF   2???           00267     goto num4
-00B0   3035           00268     movlw '5' 
-00B1   0228           00269     subwf datatmp,W
-00B2   1903           00270     btfsc STATUS,Z
-00B3   2???           00271     goto num5
-00B4   3036           00272     movlw '6' 
-00B5   0228           00273     subwf datatmp,W
-00B6   1903           00274     btfsc STATUS,Z
-00B7   2???           00275     goto num6
-00B8   3037           00276     movlw '7' 
-00B9   0228           00277     subwf datatmp,W
-00BA   1903           00278     btfsc STATUS,Z
-00BB   2???           00279     goto num7
-00BC   3038           00280     movlw '8' 
-00BD   0228           00281     subwf datatmp,W
-00BE   1903           00282     btfsc STATUS,Z
-00BF   2???           00283     goto num8
-00C0   3039           00284     movlw '9' 
-00C1   0228           00285     subwf datatmp,W
-00C2   1903           00286     btfsc STATUS,Z
-00C3   2???           00287     goto num9
-00C4   3041           00288     movlw 'A' 
-00C5   0228           00289     subwf datatmp,W
-00C6   1903           00290     btfsc STATUS,Z
-00C7   2???           00291     goto letA
-00C8   3042           00292     movlw 'B' 
-00C9   0228           00293     subwf datatmp,W
-00CA   1903           00294     btfsc STATUS,Z
-00CB   2???           00295     goto letB
-00CC   3043           00296     movlw 'C' 
-00CD   0228           00297     subwf datatmp,W
-00CE   1903           00298     btfsc STATUS,Z
-00CF   2???           00299     goto letC
-00D0   3044           00300     movlw 'D' 
-00D1   0228           00301     subwf datatmp,W
-00D2   1903           00302     btfsc STATUS,Z
-00D3   2???           00303     goto letD    
-00D4   3045           00304     movlw 'E' 
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE  7
+00AB   022D           00247     subwf counterbuzzer,W     ;| cycles=5
+00AC   1903           00248     btfsc STATUS,Z            ;|
+00AD   14A9           00249     bsf Task,buzzer           ;|
+                      00250     
+                      00251     ;TASK 2
+00AE   0AAC           00252     incf counterdisplay,F     ;| counterdisplay++
+00AF   303F           00253     movlw d'63'               ;| counterdisplay=62.5? 'LOL'             
+00B0   022C           00254     subwf counterdisplay,W    ;| cycles=5
+00B1   1903           00255     btfsc STATUS,Z            ;|
+00B2   1529           00256     bsf Task,dysdata          ;|
+                      00257 
+                      00258     ;TASK 3
+00B3   0AAA           00259     incf counterdebouncer,F     ;| counterdisplay++
+00B4   30FF           00260     movlw d'255'                      ;| counterdisplay=62.5? 'LOL'             
+00B5   022A           00261     subwf counterdebouncer,W    ;| cycles=5
+00B6   1903           00262     btfsc STATUS,Z              ;|
+Message[305]: Using default destination of 1 (file).
+00B7   0AAB           00263     incf counterdebouncer+1
+00B8   300A           00264     movlw d'10'
+00B9   022B           00265     subwf counterdebouncer+1,W    ;| cycles=5
+00BA   1903           00266     btfsc STATUS,Z
+00BB   1429           00267     bsf Task,debouncing
+00BC   1DA9           00268     btfss Task,push
+00BD   1029           00269     bcf Task,debouncing
+                      00270     
+                      00271     ;TASK 4 'Whistle'
+00BE   3005           00272     movlw d'5'
+00BF   022B           00273     subwf counterdebouncer+1,W
+00C0   1903           00274     btfsc STATUS,Z
+00C1   1629           00275     bsf Task,whistle
+00C2   1DA9           00276     btfss Task,push
+00C3   1229           00277     bcf Task,whistle
+                      00278     
+                      00279     
+00C4   30E7           00280     movlw -d'25' ; 50useg (50)/2   (50-2-2-2-5-5)/2
+                      00281     ;MOVLW 0X00
+00C5   0081           00282     movwf TMR0 
+00C6   110B           00283     bcf INTCON,T0IF ;Clearing interrupt flag TMR0
+00C7   0008           00284     return
+                      00285     
+00C8                  00286 INT0ISR: 
+                      00287     ;goto $
+00C8   120B           00288     bcf INTCON,INTE
+00C9   108B           00289     bcf INTCON,INTF ;Clearing the flag
+00CA   01AA           00290     clrf counterdebouncer
+00CB   01AB           00291     clrf counterdebouncer+1
+                      00292     ;clrf basetransistor
+00CC   15A9           00293     bsf Task,push
+00CD   1683           00294     bsf STATUS,RP0
+Message[302]: Register in operand not in bank 0.  Ensure that bank bits are correct.
+00CE   1385           00295     bcf TRISA,7 ;turn on buzzer
+00CF   1283           00296     bcf STATUS,RP0
+                      00297      ;call rotateStack
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE  7
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-00D5   0228           00305     subwf datatmp,W
-00D6   1903           00306     btfsc STATUS,Z
-00D7   2???           00307     goto letE    
-00D8   3046           00308     movlw 'F' 
-00D9   0228           00309     subwf datatmp,W
-00DA   1903           00310     btfsc STATUS,Z
-00DB   2???           00311     goto letF    
-00DC   3048           00312     movlw 'H' 
-00DD   0228           00313     subwf datatmp,W
-00DE   1903           00314     btfsc STATUS,Z
-00DF   2???           00315     goto letH 
-00E0   304C           00316     movlw 'L' 
-00E1   0228           00317     subwf datatmp,W
-00E2   1903           00318     btfsc STATUS,Z
-00E3   2???           00319     goto letL
-00E4   3050           00320     movlw 'P' 
-00E5   0228           00321     subwf datatmp,W
-00E6   1903           00322     btfsc STATUS,Z
-00E7   2???           00323     goto letP
-00E8   3055           00324     movlw 'U' 
-00E9   0228           00325     subwf datatmp,W
-00EA   1903           00326     btfsc STATUS,Z
-00EB   2???           00327     goto letU
-00EC   304E           00328     movlw 'N' 
-00ED   0228           00329     subwf datatmp,W
-00EE   1903           00330     btfsc STATUS,Z
-00EF   2???           00331     goto letN
-00F0   2???           00332     goto none  ;It has not been ingresed a correct character
-                      00333     
-                      00334 ;----------------------------------------------------------- Generating a delay
-00F1                  00335 delay10ms:  ;4MHz frecuency oscillator
-00F1   3054           00336     movlw d'84'  ;A Value
-00F2   00B3           00337     movwf delayvar+1
-00F3   3026           00338 d0:   movlw d'38' ;B Value
-00F4   00B2           00339     movwf delayvar  
-00F5   0000           00340     nop
-00F6   0BB2           00341 d1:  decfsz delayvar,F
-00F7   2???           00342     goto d1
-00F8   0BB3           00343     decfsz delayvar+1,F
-00F9   2???           00344     goto d0      
-00FA   0008           00345     return ;2+1+1+A[1+1+1+B+1+2B-2]+A+1+2A-2+2 => 5+A[5+3B]
-00FB                  00346 delay: ;300 ms delay
-00FB   300A           00347     movlw .10
-00FC   2???           00348     call delayW0ms
-00FD   0008           00349     return
-                      00350     
-00FE                  00351 delayW0ms: ;It is neccesary load a properly value in the acumulator before use this subrutine
-00FE   00B4           00352     movwf delayvar+2
-00FF   2???           00353 d2:    call delay10ms
-0100   0BB4           00354     decfsz delayvar+2,F
-0101   2???           00355     goto d2
-0102   0008           00356     return   
-                      00357     
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE  8
+                      00298      ;bcf INTCON,INTE
+00D0   0008           00299     return
+                      00300     
+00D1                  00301 rotateStack:
+00D1   0820           00302     movf stack,W ;pos 0
+00D2   00B6           00303     movwf tempstack ;save stack 0
+00D3   0827           00304     movf stack+7,W
+00D4   00A0           00305     movwf stack ; 7 -> 0
+                      00306     
+00D5   0821           00307     movf stack+1,W ;save stack 1
+00D6   00B7           00308     movwf tempstack+1 
+00D7   0836           00309     movf tempstack,W
+00D8   00A1           00310     movwf stack+1 ; 0 -> 1
+                      00311     
+00D9   0822           00312     movf stack+2,W ;save stack 2
+00DA   00B6           00313     movwf tempstack 
+00DB   0837           00314     movf tempstack+1,W
+00DC   00A2           00315     movwf stack+2 ; 1->2 
+                      00316     
+00DD   0823           00317     movf stack+3,W ;save stack 1
+00DE   00B7           00318     movwf tempstack+1 
+00DF   0836           00319     movf tempstack,W
+00E0   00A3           00320     movwf stack+3 ; 2 -> 3
+                      00321     
+00E1   0824           00322     movf stack+4,W ;save stack 2
+00E2   00B6           00323     movwf tempstack 
+00E3   0837           00324     movf tempstack+1,W
+00E4   00A4           00325     movwf stack+4 ; 3->4 
+                      00326     
+00E5   0825           00327      movf stack+5,W ;save stack 1
+00E6   00B7           00328     movwf tempstack+1 
+00E7   0836           00329     movf tempstack,W
+00E8   00A5           00330     movwf stack+5 ; 4 -> 5
+                      00331     
+00E9   0826           00332     movf stack+6,W ;save stack 2
+00EA   00B6           00333     movwf tempstack 
+00EB   0837           00334     movf tempstack+1,W
+00EC   00A6           00335     movwf stack+6 ; 5->6 
+                      00336     
+00ED   0827           00337      movf stack+7,W ;save stack 1
+00EE   00B7           00338     movwf tempstack+1 
+00EF   0836           00339     movf tempstack,W
+00F0   00A7           00340     movwf stack+7 ; 6 -> 7
+00F1   0008           00341     return
+                      00342     
+00F2                  00343 tabla:  ; Table for display data in a 7segment display
+00F2   3030           00344     movlw '0' 
+00F3   0228           00345     subwf datatmp,W
+00F4   1903           00346     btfsc STATUS,Z
+00F5   2???           00347     goto num0
+00F6   3031           00348     movlw '1' 
+00F7   0228           00349     subwf datatmp,W
+00F8   1903           00350     btfsc STATUS,Z
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE  8
 
 
 LOC  OBJECT CODE     LINE SOURCE TEXT
   VALUE
 
-0103                  00358 num0:
-0103   34FC           00359     retlw b'11111100' ; 0
-0104                  00360 num1:    
-0104   3460           00361     retlw b'01100000' ; 1
-0105                  00362 num2:    
-0105   34DA           00363     retlw b'11011010' ; 2
-0106                  00364 num3:    
-0106   34F2           00365     retlw b'11110010' ; 3
-0107                  00366 num4:    
-0107   3466           00367     retlw b'01100110' ; 4
-0108                  00368 num5:    
-0108   34B6           00369     retlw b'10110110' ; 5 
-0109                  00370 num6:    
-0109   34BE           00371     retlw b'10111110' ; 6 
-010A                  00372 num7:    
-010A   34E0           00373     retlw b'11100000' ; 7
-010B                  00374 num8:    
-010B   34FE           00375     retlw b'11111110' ; 8 
-010C                  00376 num9:    
-010C   34F6           00377     retlw b'11110110' ; 9
-010D                  00378 letA:    
-010D   34EE           00379     retlw b'11101110' ; A 
-010E                  00380 letB:    
-010E   343E           00381     retlw b'00111110' ; B
-010F                  00382 letC:    
-010F   349C           00383     retlw b'10011100' ; C
-0110                  00384 letD:    
-0110   347A           00385     retlw b'01111010' ; D
-0111                  00386 letE:    
-0111   349E           00387     retlw b'10011110' ; E
-0112                  00388 letF:    
-0112   348E           00389     retlw b'10001110' ; F
-0113                  00390 letH:    
-0113   346E           00391     retlw b'01101110' ; H    
-0114                  00392 letL:    
-0114   341C           00393     retlw b'00011100' ; L   
-0115                  00394 letP:    
-0115   34CE           00395     retlw b'11001110' ; P      
-0116                  00396 letU:    
-0116   347C           00397     retlw b'01111100' ; U
-0117                  00398 letN:    
-0117   34EC           00399     retlw b'11101100' ; N       
-0118                  00400 none:
-0118   3400           00401     retlw b'00000000' ; Error
-                      00402     
-3F29                  00403     END
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE  9
+00F9   2???           00351     goto num1
+00FA   3032           00352     movlw '2' 
+00FB   0228           00353     subwf datatmp,W
+00FC   1903           00354     btfsc STATUS,Z
+00FD   2???           00355     goto num2
+00FE   3033           00356     movlw '3' 
+00FF   0228           00357     subwf datatmp,W
+0100   1903           00358     btfsc STATUS,Z
+0101   2???           00359     goto num3
+0102   3034           00360     movlw '4' 
+0103   0228           00361     subwf datatmp,W
+0104   1903           00362     btfsc STATUS,Z
+0105   2???           00363     goto num4
+0106   3035           00364     movlw '5' 
+0107   0228           00365     subwf datatmp,W
+0108   1903           00366     btfsc STATUS,Z
+0109   2???           00367     goto num5
+010A   3036           00368     movlw '6' 
+010B   0228           00369     subwf datatmp,W
+010C   1903           00370     btfsc STATUS,Z
+010D   2???           00371     goto num6
+010E   3037           00372     movlw '7' 
+010F   0228           00373     subwf datatmp,W
+0110   1903           00374     btfsc STATUS,Z
+0111   2???           00375     goto num7
+0112   3038           00376     movlw '8' 
+0113   0228           00377     subwf datatmp,W
+0114   1903           00378     btfsc STATUS,Z
+0115   2???           00379     goto num8
+0116   3039           00380     movlw '9' 
+0117   0228           00381     subwf datatmp,W
+0118   1903           00382     btfsc STATUS,Z
+0119   2???           00383     goto num9
+011A   3041           00384     movlw 'A' 
+011B   0228           00385     subwf datatmp,W
+011C   1903           00386     btfsc STATUS,Z
+011D   2???           00387     goto letA
+011E   3042           00388     movlw 'B' 
+011F   0228           00389     subwf datatmp,W
+0120   1903           00390     btfsc STATUS,Z
+0121   2???           00391     goto letB
+0122   3043           00392     movlw 'C' 
+0123   0228           00393     subwf datatmp,W
+0124   1903           00394     btfsc STATUS,Z
+0125   2???           00395     goto letC
+0126   3044           00396     movlw 'D' 
+0127   0228           00397     subwf datatmp,W
+0128   1903           00398     btfsc STATUS,Z
+0129   2???           00399     goto letD    
+012A   3045           00400     movlw 'E' 
+012B   0228           00401     subwf datatmp,W
+012C   1903           00402     btfsc STATUS,Z
+012D   2???           00403     goto letE    
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE  9
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+012E   3046           00404     movlw 'F' 
+012F   0228           00405     subwf datatmp,W
+0130   1903           00406     btfsc STATUS,Z
+0131   2???           00407     goto letF    
+0132   3048           00408     movlw 'H' 
+0133   0228           00409     subwf datatmp,W
+0134   1903           00410     btfsc STATUS,Z
+0135   2???           00411     goto letH 
+0136   304C           00412     movlw 'L' 
+0137   0228           00413     subwf datatmp,W
+0138   1903           00414     btfsc STATUS,Z
+0139   2???           00415     goto letL
+013A   3050           00416     movlw 'P' 
+013B   0228           00417     subwf datatmp,W
+013C   1903           00418     btfsc STATUS,Z
+013D   2???           00419     goto letP
+013E   3055           00420     movlw 'U' 
+013F   0228           00421     subwf datatmp,W
+0140   1903           00422     btfsc STATUS,Z
+0141   2???           00423     goto letU
+0142   304E           00424     movlw 'N' 
+0143   0228           00425     subwf datatmp,W
+0144   1903           00426     btfsc STATUS,Z
+0145   2???           00427     goto letN
+0146   2???           00428     goto none  ;It has not been ingresed a correct character
+                      00429     
+                      00430 ;----------------------------------------------------------- Generating a delay
+0147                  00431 delay10ms:  ;4MHz frecuency oscillator
+0147   3054           00432     movlw d'84'  ;A Value
+0148   00B4           00433     movwf delayvar+1
+0149   3026           00434 d0:   movlw d'38' ;B Value
+014A   00B3           00435     movwf delayvar  
+014B   0000           00436     nop
+014C   0BB3           00437 d1:  decfsz delayvar,F
+014D   2???           00438     goto d1
+014E   0BB4           00439     decfsz delayvar+1,F
+014F   2???           00440     goto d0      
+0150   0008           00441     return ;2+1+1+A[1+1+1+B+1+2B-2]+A+1+2A-2+2 => 5+A[5+3B]
+0151                  00442 delay: ;300 ms delay
+0151   300A           00443     movlw .10
+0152   2???           00444     call delayW0ms
+0153   0008           00445     return
+                      00446     
+0154                  00447 delayW0ms: ;It is neccesary load a properly value in the acumulator before use this subrutine
+0154   00B5           00448     movwf delayvar+2
+0155   2???           00449 d2:    call delay10ms
+0156   0BB5           00450     decfsz delayvar+2,F
+0157   2???           00451     goto d2
+0158   0008           00452     return   
+                      00453     
+0159                  00454 num0:
+0159   34FC           00455     retlw b'11111100' ; 0
+015A                  00456 num1:    
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE 10
+
+
+LOC  OBJECT CODE     LINE SOURCE TEXT
+  VALUE
+
+015A   3460           00457     retlw b'01100000' ; 1
+015B                  00458 num2:    
+015B   34DA           00459     retlw b'11011010' ; 2
+015C                  00460 num3:    
+015C   34F2           00461     retlw b'11110010' ; 3
+015D                  00462 num4:    
+015D   3466           00463     retlw b'01100110' ; 4
+015E                  00464 num5:    
+015E   34B6           00465     retlw b'10110110' ; 5 
+015F                  00466 num6:    
+015F   34BE           00467     retlw b'10111110' ; 6 
+0160                  00468 num7:    
+0160   34E0           00469     retlw b'11100000' ; 7
+0161                  00470 num8:    
+0161   34FE           00471     retlw b'11111110' ; 8 
+0162                  00472 num9:    
+0162   34F6           00473     retlw b'11110110' ; 9
+0163                  00474 letA:    
+0163   34EE           00475     retlw b'11101110' ; A 
+0164                  00476 letB:    
+0164   343E           00477     retlw b'00111110' ; B
+0165                  00478 letC:    
+0165   349C           00479     retlw b'10011100' ; C
+0166                  00480 letD:    
+0166   347A           00481     retlw b'01111010' ; D
+0167                  00482 letE:    
+0167   349E           00483     retlw b'10011110' ; E
+0168                  00484 letF:    
+0168   348E           00485     retlw b'10001110' ; F
+0169                  00486 letH:    
+0169   346E           00487     retlw b'01101110' ; H    
+016A                  00488 letL:    
+016A   341C           00489     retlw b'00011100' ; L   
+016B                  00490 letP:    
+016B   34CE           00491     retlw b'11001110' ; P      
+016C                  00492 letU:    
+016C   347C           00493     retlw b'01111100' ; U
+016D                  00494 letN:    
+016D   34EC           00495     retlw b'11101100' ; N       
+016E                  00496 none:
+016E   3400           00497     retlw b'00000000' ; Error
+                      00498     
+3F38                  00499     END
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE 11
 
 
 SYMBOL TABLE
@@ -512,17 +627,17 @@ FERR                              00000002
 FSR                               00000004
 GIE                               00000007
 INDF                              00000000
-INT0ISR                           00000098
+INT0ISR                           000000C8
 INTCON                            0000000B
 INTE                              00000004
 INTEDG                            00000006
 INTF                              00000001
 IRP                               00000007
-ISR                               00000081
+ISR                               0000009C
 NOT_BO                            00000000
 NOT_BOD                           00000000
 NOT_BOR                           00000000
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE 10
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE 12
 
 
 SYMBOL TABLE
@@ -581,7 +696,7 @@ SPEN                              00000007
 SREN                              00000005
 STATUS                            00000003
 SYNC                              00000004
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE 11
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE 13
 
 
 SYMBOL TABLE
@@ -601,7 +716,7 @@ T2CON                             00000012
 TMR0                              00000001
 TMR0IE                            00000005
 TMR0IF                            00000002
-TMR0ISR                           0000008A
+TMR0ISR                           000000A9
 TMR1                              0000000E
 TMR1CS                            00000001
 TMR1H                             0000000F
@@ -640,7 +755,7 @@ TX9                               00000006
 TX9D                              00000000
 TXEN                              00000005
 TXIE                              00000004
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE 12
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE 14
 
 
 SYMBOL TABLE
@@ -699,7 +814,7 @@ _LVP_ON                           00003FFF
 _MCLRE_OFF                        00003FDF
 _MCLRE_ON                         00003FFF
 _PWRTE_OFF                        00003FFF
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE 13
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE 15
 
 
 SYMBOL TABLE
@@ -714,79 +829,84 @@ _WDT_OFF                          00003FFB
 _WDT_ON                           00003FFF
 _XT_OSC                           00003FED
 __16F628A                         00000001
-basetransistor                    0000002D
+basetransistor                    0000002E
 buzzer                            1
-count8                            0000002E
-counterbuzzer                     0000002C
-counterdebounce                   0000002A
-counterdisplay                    0000002B
-d0                                000000F3
-d1                                000000F6
-d2                                000000FF
-data595                           00000031
+count8                            0000002F
+counterbuzzer                     0000002D
+counterdebouncer                  0000002A
+counterdisplay                    0000002C
+d0                                00000149
+d1                                0000014C
+d2                                00000155
+data595                           00000032
 datatmp                           00000028
 debouncing                        0
-delay                             000000FB
-delay10ms                         000000F1
-delayW0ms                         000000FE
-delayvar                          00000032
+delay                             00000151
+delay10ms                         00000147
+delayW0ms                         00000154
+delayvar                          00000033
 dysdata                           2
-initINT0                          00000080
-initTMR0                          00000074
-initialconfig                     0000004E
-initialstates                     00000059
-latch                             0000004B
-letA                              0000010D
-letB                              0000010E
-letC                              0000010F
-letD                              00000110
-letE                              00000111
-letF                              00000112
-letH                              00000113
-letL                              00000114
-letN                              00000117
-letP                              00000115
-letU                              00000116
+initINT0                          00000097
+initTMR0                          0000008B
+initialconfig                     0000005F
+initialstates                     0000006C
+latch                             0000005C
+letA                              00000163
+letB                              00000164
+letC                              00000165
+letD                              00000166
+letE                              00000167
+letF                              00000168
+letH                              00000169
+letL                              0000016A
+letN                              0000016D
+letP                              0000016B
+letU                              0000016C
 main                              00000009
-none                              00000118
-num0                              00000103
-num1                              00000104
-num2                              00000105
-num3                              00000106
-num4                              00000107
-num5                              00000108
-num6                              00000109
-num7                              0000010A
-num8                              0000010B
-MPASM 5.68                   MAINPARCIAL.ASM   9-21-2016  21:19:02         PAGE 14
+none                              0000016E
+num0                              00000159
+num1                              0000015A
+num2                              0000015B
+num3                              0000015C
+num4                              0000015D
+num5                              0000015E
+num6                              0000015F
+num7                              00000160
+num8                              00000161
+MPASM 5.68                   MAINPARCIAL.ASM   9-22-2016  0:38:37         PAGE 16
 
 
 SYMBOL TABLE
   LABEL                             VALUE 
 
-num9                              0000010C
-pclock                            00000048
+num9                              00000162
+offbuzzer                         00000023
+pclock                            00000059
 pinCLOCK                          PORTB,RB7
 pinDATA                           PORTB,RB6
 pinLATCH                          PORTB,RB5
-pinbuzzer                         PORTB,RB7
+pinbuzzer                         PORTA,RA7
 pindisplay1                       PORTA,RA0
 pindisplay2                       PORTA,RA1
 pindisplay3                       PORTA,RA2
 pindisplay4                       PORTA,RA3
-rdebouncing                       00000010
-send8                             0000003C
-sendata                           0000002C
-showdigit                         00000017
+push                              3
+rdebouncing                       00000016
+rotateStack                       000000D1
+send8                             0000004D
+sendata                           0000003D
+showdigit                         00000028
 stack                             00000020
-statustmp                         0000002F
-tabla                             0000009C
+statustmp                         00000030
+tabla                             000000F2
 task                              0000000D
-togglebuzzer                      00000012
-wtemp                             00000030
+tempstack                         00000036
+togglebuzzer                      0000001E
+whistle                           4
+wtemp                             00000031
 
 Errors   :     0
 Warnings :     0 reported,     0 suppressed
-Messages :     4 reported,     0 suppressed
+Messages :    10 reported,     0 suppressed
 
 

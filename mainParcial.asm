@@ -8,18 +8,20 @@
     #define pinDATA PORTB,RB6;Data (anode-> 7 segment) 
     #define pinLATCH PORTB,RB5;To latch the data in 595
     #define pinCLOCK PORTB,RB7 ;Clock for 595
+    #define push 3 ; bit for enabling push
     #define debouncing 0 ; Bit 0 for enabling debouncing
     #define buzzer 1 ;Bit 1 for enabling debouncing
     #define dysdata 2 ;Bit 2 for enabling show data 
-    #define pinbuzzer PORTB,RB7
+    #define whistle 4 ; Bit 4 for enabling whistle of the buzzer
+    #define pinbuzzer PORTA,RA7
     
- __CONFIG _FOSC_XT & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & _CP_OFF
+ __CONFIG _FOSC_INTOSCIO & _WDTE_OFF & _PWRTE_OFF & _MCLRE_ON & _BOREN_OFF & _LVP_OFF & _CPD_OFF & _CP_OFF
  
     CBLOCK 0x20
     stack:8 ; Stack
     datatmp
     Task ; bit
-    counterdebounce ; var to how often this subroutine is done
+    counterdebouncer:2 ; var to how often this subroutine is done
     counterdisplay
     counterbuzzer
     basetransistor ; states of base tran
@@ -28,6 +30,7 @@
     wtemp
     data595
     delayvar:3
+    tempstack:2
     ENDC
     
     org 0x00 ; Start of the program 
@@ -43,36 +46,42 @@ main:
     call initTMR0
     
 task:   
-    
-;    bcf PORTA,RA2; 
-;    movlw d'30'
-;    call delayW0ms
-;    bsf PORTA,RA2
-;    movlw d'30'
-;    call delayW0ms
-    
-;    movlw 0xAA   ;SENDING DATA SERIALYS
-;    movwf data595;send serial data to 595
-;    call send8
-;    call latch
     ;polling flags (task)
-;    btfsc Task,debouncing
-;    call rdebouncing
-;    btfsc Task,buzzer
-   ; call togglebuzzer; Bit toggle pin buzzer
+    btfsc Task,debouncing; task for debouncing
+    call rdebouncing
+    btfsc Task,buzzer
+    call togglebuzzer; Bit toggle pin buzzer
     btfsc Task,dysdata
     call showdigit ; Show digit display
+    btfsc Task,whistle
+    call offbuzzer
     goto task
 
 rdebouncing: ; ----------------------------------------
-    bsf INTCON,INTF ; Enabling interrupt flag
+    bcf INTCON,INTF
+    bsf INTCON,INTE 
+    bcf Task,debouncing
+    bcf Task,push
+    bcf INTCON,GIE
+       call rotateStack
+    bsf INTCON,GIE   
     return
+    
 togglebuzzer: ; ------------------------------subroutine for toggling the buzzer
     clrf counterbuzzer
     bcf Task,buzzer
     movlw b'10000000' ; Just for toggling
-    xorwf PORTB
+    xorwf PORTA
     return
+    
+offbuzzer: ;-----------------------------subroutine to turn off the buzzer   
+    bsf STATUS,RP0
+    bsf TRISA,7
+    bcf STATUS,RP0
+    bcf Task,whistle
+  
+    return
+    
 showdigit: ; --------------------------------subroutine for show data in 4(7seg)
     clrf counterdisplay
     bcf STATUS,C
@@ -150,6 +159,8 @@ initialconfig: ;----------------------------------------subrutine for MCU config
     bcf STATUS,RP1 
     clrf TRISA ; Setting data direction PortA
     clrf TRISB ; Setting data direction PortB
+    bsf TRISA,7 ; Buzzer OFF
+    bsf TRISB,RB0 ; External interrupt
     bcf STATUS,RP0 ;Bank 0 
     bcf STATUS,RP1
     return
@@ -163,10 +174,14 @@ initialstates: ;-------------------------subrutine for setting the initialstates
     movwf stack+2
     movlw 'A'
     movwf stack+3
-    clrf stack+4
-    clrf stack+5
-    clrf stack+6
-    clrf stack+7 
+    movlw ' '
+    movwf stack+4
+    movlw '1'
+    movwf stack+5
+    movlw '2'
+    movwf stack+6
+    movlw '3'
+    movwf stack+7
     bcf pindisplay1 ; Turn off displays
     bcf pindisplay2
     bcf pindisplay3
@@ -198,6 +213,10 @@ initTMR0: ;-----------------------------------subrutine for setting the TIMER 0
     return
     
 initINT0: ;-------------------------subrutine for setting the external interrupt
+    bsf OPTION_REG,7 ;disnabling pull-up resistor
+    bcf INTCON,INTF  ;clearing flag
+    bsf INTCON,INTE ;enabling interrupt
+    bsf INTCON,GIE ;enabling global interrups
     return
     
 ;**************************************************************BACKGROUND RUTINE    
@@ -207,10 +226,13 @@ ISR:
     movf STATUS,W
     movwf statustmp
     
+    bcf STATUS,RP0; bank 0
+    bcf STATUS,RP1 
+    
     btfsc INTCON,T0IF
     call TMR0ISR
-    ;btfsc INTCON,INTF
-    ;call INT0ISR
+    btfsc INTCON,INTF
+    call INT0ISR
     ;btfsc usart
     ;Restore context saving (WREG, STATUS)
     movf statustmp,W
@@ -219,29 +241,103 @@ ISR:
     retfie  ; Restoring the status before the interrupt
  
 TMR0ISR:
+    ;TASK 1
     incf counterbuzzer,F      ;| counterbuzzer++
     movlw 0x05                ;| counterbuzzer=5?
     subwf counterbuzzer,W     ;| cycles=5
     btfsc STATUS,Z            ;|
     bsf Task,buzzer           ;|
     
+    ;TASK 2
     incf counterdisplay,F     ;| counterdisplay++
     movlw d'63'	              ;| counterdisplay=62.5? 'LOL'		
     subwf counterdisplay,W    ;| cycles=5
     btfsc STATUS,Z	      ;|
     bsf Task,dysdata          ;|
 
-    movlw -d'20' ; 50useg (50)/2   (50-2-2-2-5-5)/2
+    ;TASK 3
+    incf counterdebouncer,F     ;| counterdisplay++
+    movlw d'255'	              ;| counterdisplay=62.5? 'LOL'		
+    subwf counterdebouncer,W    ;| cycles=5
+    btfsc STATUS,Z	        ;|
+    incf counterdebouncer+1
+    movlw d'10'
+    subwf counterdebouncer+1,W    ;| cycles=5
+    btfsc STATUS,Z
+    bsf Task,debouncing
+    btfss Task,push
+    bcf Task,debouncing
+    
+    ;TASK 4 'Whistle'
+    movlw d'5'
+    subwf counterdebouncer+1,W
+    btfsc STATUS,Z
+    bsf Task,whistle
+    btfss Task,push
+    bcf Task,whistle
+    
+    
+    movlw -d'25' ; 50useg (50)/2   (50-2-2-2-5-5)/2
     ;MOVLW 0X00
     movwf TMR0 
     bcf INTCON,T0IF ;Clearing interrupt flag TMR0
     return
     
 INT0ISR: 
-    ; Turn on anti-debouncing task
-    bsf Task,debouncing
-    bcf INTCON,INTF ;Clearing interrupt flag external interrupt
+    ;goto $
     bcf INTCON,INTE
+    bcf INTCON,INTF ;Clearing the flag
+    clrf counterdebouncer
+    clrf counterdebouncer+1
+    ;clrf basetransistor
+    bsf Task,push
+    bsf STATUS,RP0
+    bcf TRISA,7 ;turn on buzzer
+    bcf STATUS,RP0
+     ;call rotateStack
+     ;bcf INTCON,INTE
+    return
+    
+rotateStack:
+    movf stack,W ;pos 0
+    movwf tempstack ;save stack 0
+    movf stack+7,W
+    movwf stack ; 7 -> 0
+    
+    movf stack+1,W ;save stack 1
+    movwf tempstack+1 
+    movf tempstack,W
+    movwf stack+1 ; 0 -> 1
+    
+    movf stack+2,W ;save stack 2
+    movwf tempstack 
+    movf tempstack+1,W
+    movwf stack+2 ; 1->2 
+    
+    movf stack+3,W ;save stack 1
+    movwf tempstack+1 
+    movf tempstack,W
+    movwf stack+3 ; 2 -> 3
+    
+    movf stack+4,W ;save stack 2
+    movwf tempstack 
+    movf tempstack+1,W
+    movwf stack+4 ; 3->4 
+    
+     movf stack+5,W ;save stack 1
+    movwf tempstack+1 
+    movf tempstack,W
+    movwf stack+5 ; 4 -> 5
+    
+    movf stack+6,W ;save stack 2
+    movwf tempstack 
+    movf tempstack+1,W
+    movwf stack+6 ; 5->6 
+    
+     movf stack+7,W ;save stack 1
+    movwf tempstack+1 
+    movf tempstack,W
+    movwf stack+7 ; 6 -> 7
     return
     
 tabla:  ; Table for display data in a 7segment display
